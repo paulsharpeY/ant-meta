@@ -328,7 +328,7 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     mutate(study_number = as.numeric(rownames(model_data)))
   study_names <- model_data %>% select(study_number, Study)
   
-  rem <- brm(
+  rem_all <- brm(
     d | se(se) ~ 1 + (1 | study_number), # random effects meta-analyses model (see brmsformula)
     data = model_data,
     chains=8, iter=iter,
@@ -337,6 +337,10 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     control = list(adapt_delta = adapt_delta),
     file = paste0('cache/all-', var, '-brms')
   )
+  
+  all_data <- brms_object_to_table(rem_all, effects %>% select(Study, group),
+                                   cache_label = paste0('cache/all-ant-', var, '-'), subset_col = 'group',
+                                   iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
   
   rem_not_ours <- brm(
     d | se(se) ~ 1 + (1 | Study),
@@ -347,6 +351,11 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     control = list(adapt_delta = adapt_delta),
     file = paste0('cache/not-ours-', var, 'brms')
   )
+
+  all_except_our_data <- brms_object_to_table(rem_not_ours, effects %>% select(Study, group),
+                                              cache_label = paste0('cache/not-ours-ant-', var, '-'), subset_col = 'group',
+                                              iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
+  
   # rob_blobbogram(rem, robins,
   #                iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta,
   #                subset_col = 'group',
