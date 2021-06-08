@@ -11,7 +11,7 @@ library(tidybayes)
 if (get_hostname() != 'rstudio') { library(forester) }
 
 # brm config
-iter        <- '50e4' # 100e4
+iter        <- '100e4' # 100e4
 adapt_delta <- 0.8 # Should normally be 0.8 (default) < adapt_delta < 1
 sd_prior    <- "cauchy(0, .3)"
 options(mc.cores = parallel::detectCores() - 4) # 8 cores
@@ -307,27 +307,7 @@ conflict  <- mutate(conflict, score = 'conflict')
 effects   <- bind_rows(alerting, orienting, conflict) %>%
   rename(Study = study)
 
-## Forest and risk of bias plots
-
-# Set-up risk of bias dataset to have same studies, and a Study column that is used to match to the res data
-rob2  <- read_csv(paste0(data_dir, '/rob2.csv')) %>%
-  select(-Weight) %>%
-  slice(c(2, 3, 5, 7:11, 13, 14))
-rct.group <- effects %>%
-  filter(score == 'alerting') %>%
-  select(Study, group) %>%
-  slice(c(1, 2, 7, 8:12, 14, 15))
-rob2 <- left_join(rob2, rct.group, by = 'Study')
-
-robins <- read_csv(paste0(data_dir, '/robins.csv')) %>%
-  select(-Weight) %>%
-  slice(c(1, 3, 4, 6, 9, 11))
-ct.group <- effects %>%
-  filter(score == 'alerting') %>%
-  select(Study, group) %>%
-  slice(c(3:6, 13, 16))
-robins <- left_join(robins, ct.group, by = 'Study')
-
+## Forest plots
 
 for (var in c('conflict', 'alerting', 'orienting')) {
   if (var == 'conflict') {
@@ -343,11 +323,10 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     mutate(se = ci95_to_se(u, l)) %>%
     select(Study, d, se, ci, l, u, mean1, mean2, group)
 
-  # model all studies for funnel plots
+  # all studies
   model_data <- model_data %>%
     mutate(study_number = as.numeric(rownames(model_data)))
   study_names <- model_data %>% select(study_number, Study)
-  #saveRDS(model_data, paste0('conflict_data.rds'))
   
   rem <- brm(
     d | se(se) ~ 1 + (1 | study_number), # random effects meta-analyses model (see brmsformula)
@@ -356,191 +335,36 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     prior = c(prior_string("normal(0,1)", class = "Intercept"),
               prior_string(sd_prior, class = "sd")),
     control = list(adapt_delta = adapt_delta),
-    file = paste(var, 'brms', sep = '-')
+    file = paste0('cache/all-', var, '-brms')
   )
   
-  ## save data for funnel plots
-  # effect by study
-  study <- rem %>%
-    spread_draws(b_Intercept, r_study_number[study_number,]) %>%
-    mean_hdci(fitted_smd = r_study_number + b_Intercept, .width = c(.95)) %>%  # "Study-specific effects are deviations + average"
-    left_join(study_names, by = 'study_number') %>%
-    left_join(model_data, by = 'Study') %>%
-    select(Study, fitted_smd, se, group)
-  # average effect
-  pooled <- rem %>%
-    spread_draws(b_Intercept) %>%
-    mean_hdci(fitted_smd = b_Intercept, .width = c(.95)) %>%
-    mutate(Study = "pooled", se_max = max(study$se))
-  funnel_data <- bind_rows(study, pooled) # SMD is fitted value, but SE is from original study
-  saveRDS(funnel_data, paste0(data_dir, '/', var, '_funnel_data.Rd'))
-
-  # non-RCTs
-  ct <- model_data %>% slice(c(3:6, 13, 16))
-  rem <- brm(
+  rem_not_ours <- brm(
     d | se(se) ~ 1 + (1 | Study),
-    data = ct,
+    data = model_data %>% filter(!grepl('Sharpe', Study)),
     chains=8, iter=iter,
     prior = c(prior_string("normal(0,1)", class = "Intercept"),
               prior_string(sd_prior, class = "sd")),
     control = list(adapt_delta = adapt_delta),
-    file = paste('ct', var, 'brms', sep = '-')
+    file = paste0('cache/not-ours-', var, 'brms')
   )
-  rob_blobbogram(rem, robins,
-                 iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta,
-                 subset_col = 'group',
-                 estimate_col_name = estimate_col_name,
-                 cache_label = paste('ct', var, sep = '-'),
-                 null_line_at = 0,
-                 font_family = "serif",
-                 rob_colour = "cochrane",
-                 rob_tool = "Robins",
-                 x_scale_linear = TRUE,
-                 xlim = c(-1, 1),
-                 xbreaks = c(-1, -.8, -.5, -.3, 0, .3, .5, .8, 1),
-                 arrows = FALSE,
-                 arrow_labels = c("Low", "High"),
-                 nudge_y = -0.2,
-                 estimate_precision = 2,
-                 display = FALSE,
-                 add_tests = FALSE,
-                 file_path = here::here(paste0("figures/nrct_", var, "_forest.png"))
-  )
-  
-  # RCTs
-  rct <- model_data %>% slice(c(1, 2, 7, 8:12, 14, 15))
-  rem <- brm(
-    d | se(se) ~ 1 + (1 | Study),
-    data = rct,
-    chains=8, iter=iter,
-    prior = c(prior_string("normal(0,1)", class = "Intercept"),
-              prior_string(sd_prior, class = "sd")),
-    control = list(adapt_delta = adapt_delta),
-    file = paste('rct', var, 'brms', sep = '-')
-  )
-  # variance (vi) = sei^2
-  # yi must be named 'yi' for slab to work
-  #rct.escalc <- metafor::escalc(measure = "SMD", yi = yi, sei = sei, data = rct, slab = Study)
-  #rct.rma <- metafor::rma(yi, vi, data = rct.escalc)
-  rob_blobbogram(rem, rob2,
-                 iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta,
-                 subset_col = 'group',
-                 estimate_col_name = estimate_col_name,
-               cache_label = paste('rct', var, sep = '-'),
-               null_line_at = 0,
-               font_family = "serif",
-               rob_colour = "cochrane",
-               rob_tool = "ROB2",
-               x_scale_linear = TRUE,
-               xlim = c(-1.2, 1.2),
-               xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
-               arrows = FALSE,
-               arrow_labels = c("Low", "High"),
-               nudge_y = -0.2,
-               estimate_precision = 2,
-               display = FALSE,
-               add_tests = FALSE,
-               file_path = here::here(paste0("figures/rct_", var, "_forest.png"))
-               )
+  # rob_blobbogram(rem, robins,
+  #                iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta,
+  #                subset_col = 'group',
+  #                estimate_col_name = estimate_col_name,
+  #                cache_label = paste('ct', var, sep = '-'),
+  #                null_line_at = 0,
+  #                font_family = "serif",
+  #                rob_colour = "cochrane",
+  #                rob_tool = "Robins",
+  #                x_scale_linear = TRUE,
+  #                xlim = c(-1, 1),
+  #                xbreaks = c(-1, -.8, -.5, -.3, 0, .3, .5, .8, 1),
+  #                arrows = FALSE,
+  #                arrow_labels = c("Low", "High"),
+  #                nudge_y = -0.2,
+  #                estimate_precision = 2,
+  #                display = FALSE,
+  #                add_tests = FALSE,
+  #                file_path = here::here(paste0("figures/nrct_", var, "_forest.png"))
+  # )
 }
-
-read_brms_model <- function(name) {
-  readRDS(paste0(name, '.rds'))
-}
-
-p_effect <- tibble(type = '', var = '', experience = '', small = 0, medium = 0, large = 0, neg_small = 0, neg_medium = 0)
-for (type in c('rct', 'ct')) {
-  for (var in c('alerting', 'orienting', 'conflict')) {
-    for (experience in c('Novice', 'Experienced')) {
-      name <- paste(type, var, experience, 'brms', sep = '-')
-      if (name %in% c('ct-alerting-Novice-brms', 'ct-orienting-Novice-brms', 'ct-conflict-Novice-brms')) next
-      model <- read_brms_model(name)
-      # pooled effect
-      draws <- spread_draws(model, b_Intercept) %>% rename(b = b_Intercept)
-      df <- draws %>% summarise(small = mean(b > 0.2), medium = mean(b > 0.5), large = mean(b > 0.8),
-                                neg_small = mean(b < -.2), neg_medium = mean(b < -.5))
-      p_effect <- add_row(p_effect, type = type, var = var, experience = experience,
-                          small = df$small, medium = df$medium, large = df$large,
-                          neg_small = df$neg_small, neg_medium = df$neg_medium)
-    }
-  }
-}
-p_effect <- slice(p_effect, 2:n())
-saveRDS(p_effect, paste0(data_dir, '/p_effect.Rd'))
-
-## check rhat
-p_effect <- tibble(type = '', var = '', experience = '', small = 0, medium = 0, large = 0, neg_small = 0, neg_medium = 0)
-for (type in c('rct', 'ct')) {
-  for (var in c('alerting', 'orienting', 'conflict')) {
-    for (experience in c('Novice', 'Experienced')) {
-      name <- paste(type, var, experience, 'brms', sep = '-')
-      if (name %in% c('ct-alerting-Novice-brms', 'ct-orienting-Novice-brms', 'ct-conflict-Novice-brms')) next
-      model <- read_brms_model(name)
-      print(name)
-      print(summary(model)) # check rhat
-    }
-  }
-}
-
-## BOOKMARK Bayesian models and forest plots
-# for (var in c('alerting', 'orienting', 'conflict')) {
-#   for (subgroup in c('novice', 'experienced')) {
-# 
-#     # calculate SEM from CI
-#     model_data <- effects %>%
-#       filter(score == var & group == subgroup) %>%
-#       mutate(se = ci95_to_se(u, l), study = factor(study)) %>%
-#       rename(Study = study)
-#     
-#     # this shows you the default priors
-#     #get_prior(d | se(se) ~ 1 + (1 | study), data=model_data)
-#     
-#     model_data$study <- str_replace(model_data$study, ",", "")  # remove commas in study names
-#     # to rebuild model delete cached file var'-rem'
-#     rem <- brm(
-#       d | se(se) ~ 1 + (1 | study),
-#       data = model_data,
-#       chains=8, iter=10e4,
-#       prior = c(prior_string("normal(0,1)", class = "Intercept"),
-#                 prior_string("cauchy(0, .5)", class = "sd")),
-#       file = paste(subgroup, var, 'rem', sep = '-')
-#     )
-#     table <- brms_object_to_table(rem, rct.rob2, subset_col = 'group')
-# 
-#     # Vuorre also used control=list(adapt_delta = .99). Something to do with non-convergence.
-#     
-#     # extract the posterior samples...
-#     posterior_samples <- rem %>% as.data.frame()
-#     
-#     # this dataframe has one column per parameter in the model
-#     # (inluding the random effects, so you get each study's divergence from the mean too)
-#     posterior_samples %>% names
-#     
-#     # posterior credible interval
-#     posterior_samples %>% select(b_Intercept) %>% mean_qi()
-#     
-#     # posterior plot
-#     # posterior_samples %>%
-#     #   ggplot(aes(b_Intercept)) +
-#     #   geom_density() + xlab("Pooled effect size (posterior density)")
-#     
-#     # test of the hypothesis that the pooled effect is larger than .3 or smaller than -.3
-#     # the Evid.Ratio here is a BayesFactor so we have reasonable evidence against.
-#     hypothesis(rem, "abs(Intercept)>.3")
-#     
-#     # or calculate the other way. BF=4 that the effect is smaller than < .3, even with so few studies
-#     hypothesis(rem, "abs(Intercept)<.3")
-#     
-#     forest <- forest_bayes(rem)
-#     # save plot
-#     ggsave(filename = paste0('figures/', subgroup, '_', var, '_forest.pdf'), plot = forest,
-#            units = "in", width = 8.27, height = 11.69)
-#     
-#     # Rhat = 1.0 is good
-#     # Effective Sample Size (ESS):chains*iter-warmp should be above some threshold
-#     # Group-Level, Population-Level or both?
-#     print(paste(subgroup, var, sep = ':'))
-#     print(rem)
-#     # prior_summary(rem)
-#   }
-# }
