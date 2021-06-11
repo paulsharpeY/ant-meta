@@ -11,7 +11,11 @@ library(tidybayes)
 if (get_hostname() != 'rstudio') { library(forester) }
 
 # brm config
-iter        <- '100e4' # 100e4
+if (get_hostname() == 'rstudio') {
+  iter <- '100e4'
+} else {
+  iter <- '30e4'
+}
 adapt_delta <- 0.8 # Should normally be 0.8 (default) < adapt_delta < 1
 sd_prior    <- "cauchy(0, .3)"
 options(mc.cores = parallel::detectCores() - 4) # 8 cores
@@ -19,6 +23,11 @@ options(mc.cores = parallel::detectCores() - 4) # 8 cores
 ## BOOKMARK constants
 ant_vars    <- c('alerting', 'orienting', 'conflict')
 data_dir    <- 'data'
+if (get_hostname() != 'rstudio') {
+  cache_dir <- '/media/paul/3a4d96a2-a038-47b6-8c7f-e7d0311f27e5/cache/review-meditation-ant/'
+} else {
+  cache_dir <- 'cache'
+}
 sharpe_data <- '../meditation-ant/data'
 
 ## BOOKMARK functions
@@ -309,7 +318,7 @@ effects   <- bind_rows(alerting, orienting, conflict) %>%
 
 ## Forest plots
 
-for (var in c('conflict', 'alerting', 'orienting')) {
+for (var in c('alerting', 'orienting', 'conflict')) {
   if (var == 'conflict') {
     ant_name <- 'Executive'
   } else {
@@ -328,52 +337,91 @@ for (var in c('conflict', 'alerting', 'orienting')) {
     mutate(study_number = as.numeric(rownames(model_data)))
   study_names <- model_data %>% select(study_number, Study)
   
-  rem_all <- brm(
-    d | se(se) ~ 1 + (1 | Study), # random effects meta-analyses model (see brmsformula)
-    data = model_data,
-    chains=8, iter=iter,
-    prior = c(prior_string("normal(0,1)", class = "Intercept"),
-              prior_string(sd_prior, class = "sd")),
-    control = list(adapt_delta = adapt_delta),
-    file = paste0('cache/all-', var, '-brms')
-  )
+  all_forest_file <- paste0("figures/all-", var, '.png')
+  if (! file.exists(all_forest_file)) { # save time if the forest plot has been plotted
+    rem_all <- brm(
+      d | se(se) ~ 1 + (1 | Study), # random effects meta-analyses model (see brmsformula)
+      data = model_data,
+      chains=8, iter=iter,
+      prior = c(prior_string("normal(0,1)", class = "Intercept"),
+                prior_string(sd_prior, class = "sd")),
+      control = list(adapt_delta = adapt_delta),
+      file = paste0(cache_dir, 'all-', var, '-brms')
+    )
+    
+    all_data <- brms_object_to_table(rem_all, effects %>% select(Study, group),
+                                     cache_label = paste0(cache_dir, '/all-ant-', var), subset_col = 'group',
+                                     iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
+    
+    # BOOKMARK: forest plot (all studies)
+    if (get_hostname() != 'rstudio') {
+      # forest plot for all studies
+      forester(
+        select(all_data, Study),
+        all_data$est,
+        all_data$ci_low,
+        all_data$ci_high,
+        estimate_col_name = estimate_col_name,
+        null_line_at = 0,
+        font_family = "serif",
+        x_scale_linear = TRUE,
+        xlim = c(-1.2, 1.2),
+        xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
+        arrows = FALSE,
+        arrow_labels = c("Low", "High"),
+        nudge_y = -0.2,
+        estimate_precision = 2,
+        display = FALSE,
+        file_path = here::here(all_forest_file)
+        #    xintercept = 1,
+        #    colour = 'blue'
+      )
+    }
+    # Try to handle:
+    # Error in system2(file.path(R.home(component = "bin"), "R"), args = paste("CMD config",  : 
+    # cannot popen ''/usr/lib/R/bin/R' CMD config CXX14 2>/dev/null', probable reason 'Cannot allocate memory' 
+    rm(rem_all, all_data)
+    gc()
+  }
   
-  all_data <- brms_object_to_table(rem_all, effects %>% select(Study, group),
-                                   cache_label = paste0('cache/all-ant-', var), subset_col = 'group',
-                                   iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
-  
-  rem_not_ours <- brm(
-    d | se(se) ~ 1 + (1 | Study),
-    data = model_data %>% filter(!grepl('Sharpe', Study)),
-    chains=8, iter=iter,
-    prior = c(prior_string("normal(0,1)", class = "Intercept"),
-              prior_string(sd_prior, class = "sd")),
-    control = list(adapt_delta = adapt_delta),
-    file = paste0('cache/not-ours-', var, 'brms')
-  )
-
-  all_except_our_data <- brms_object_to_table(rem_not_ours, effects %>% select(Study, group),
-                                              cache_label = paste0('cache/not-ours-ant-', var), subset_col = 'group',
-                                              iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
-  
-  # rob_blobbogram(rem, robins,
-  #                iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta,
-  #                subset_col = 'group',
-  #                estimate_col_name = estimate_col_name,
-  #                cache_label = paste('ct', var, sep = '-'),
-  #                null_line_at = 0,
-  #                font_family = "serif",
-  #                rob_colour = "cochrane",
-  #                rob_tool = "Robins",
-  #                x_scale_linear = TRUE,
-  #                xlim = c(-1, 1),
-  #                xbreaks = c(-1, -.8, -.5, -.3, 0, .3, .5, .8, 1),
-  #                arrows = FALSE,
-  #                arrow_labels = c("Low", "High"),
-  #                nudge_y = -0.2,
-  #                estimate_precision = 2,
-  #                display = FALSE,
-  #                add_tests = FALSE,
-  #                file_path = here::here(paste0("figures/nrct_", var, "_forest.png"))
-  # )
+  not_ours_forest_file <- paste0("figures/not-ours", var, '.png')
+  if (! file.exists(not_ours_forest_file)) { # save time if the forest plot has been plotted
+    rem_not_ours <- brm(
+      d | se(se) ~ 1 + (1 | Study),
+      data = model_data %>% filter(!grepl('Sharpe', Study)),
+      chains=8, iter=iter,
+      prior = c(prior_string("normal(0,1)", class = "Intercept"),
+                prior_string(sd_prior, class = "sd")),
+      control = list(adapt_delta = adapt_delta),
+      file = paste0(cache_dir, '/not-ours-', var, '-brms')
+    )
+    
+    all_except_our_data <- brms_object_to_table(rem_not_ours, effects %>% select(Study, group),
+                                                cache_label = paste0(cache_dir, '/not-ours-ant-', var), subset_col = 'group',
+                                                iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
+    
+    if (get_hostname() != 'rstudio') {
+      # forest plot for all studies
+      forester(
+        select(all_except_our_data, Study),
+        all_except_our_data$est,
+        all_except_our_data$ci_low,
+        all_except_our_data$ci_high,
+        estimate_col_name = estimate_col_name,
+        null_line_at = 0,
+        font_family = "serif",
+        x_scale_linear = TRUE,
+        xlim = c(-1.2, 1.2),
+        xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
+        arrows = FALSE,
+        arrow_labels = c("Low", "High"),
+        nudge_y = -0.2,
+        estimate_precision = 2,
+        display = FALSE,
+        file_path = here::here(paste0(not_ours_forest_file))
+      )
+    }
+    rm(rem_not_ours, all_except_our_data)
+    gc()
+  }
 }
