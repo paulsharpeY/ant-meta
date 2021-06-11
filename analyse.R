@@ -383,7 +383,7 @@ for (var in c('alerting', 'orienting', 'conflict')) {
     gc()
   }
   
-  not_ours_forest_file <- paste0("figures/not-ours", var, '.png')
+  not_ours_forest_file <- paste0("figures/not-ours-", var, '.png')
   if (! file.exists(not_ours_forest_file)) { # save time if the forest plot has been plotted
     rem_not_ours <- brm(
       d | se(se) ~ 1 + (1 | Study),
