@@ -8,7 +8,7 @@ library(tidyverse)
 library(magrittr) # because tidyverse doesn't import %$%
 library(brms)
 library(tidybayes)
-if (get_hostname() != 'rstudio') { library(forester) }
+library(forester)
 
 # brm config
 if (get_hostname() == 'rstudio') {
@@ -354,29 +354,28 @@ for (var in c('alerting', 'orienting', 'conflict')) {
                                      iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
     
     # BOOKMARK: forest plot (all studies)
-    if (get_hostname() != 'rstudio') {
-      # forest plot for all studies
-      forester(
-        select(all_data, Study),
-        all_data$est,
-        all_data$ci_low,
-        all_data$ci_high,
-        estimate_col_name = estimate_col_name,
-        null_line_at = 0,
-        font_family = "serif",
-        x_scale_linear = TRUE,
-        xlim = c(-1.2, 1.2),
-        xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
-        arrows = FALSE,
-        arrow_labels = c("Low", "High"),
-        nudge_y = -0.2,
-        estimate_precision = 2,
-        display = FALSE,
-        file_path = here::here(all_forest_file)
-        #    xintercept = 1,
-        #    colour = 'blue'
-      )
-    }
+    # forest plot for all studies
+    forester(
+      select(all_data, Study),
+      all_data$est,
+      all_data$ci_low,
+      all_data$ci_high,
+      estimate_col_name = estimate_col_name,
+      null_line_at = 0,
+      font_family = "serif",
+      x_scale_linear = TRUE,
+      xlim = c(-1.2, 1.2),
+      xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
+      arrows = FALSE,
+      arrow_labels = c("Low", "High"),
+      nudge_y = -0.2,
+      estimate_precision = 2,
+      display = FALSE,
+      file_path = here::here(all_forest_file)
+      #    xintercept = 1,
+      #    colour = 'blue'
+    )
+
     # Try to handle:
     # Error in system2(file.path(R.home(component = "bin"), "R"), args = paste("CMD config",  : 
     # cannot popen ''/usr/lib/R/bin/R' CMD config CXX14 2>/dev/null', probable reason 'Cannot allocate memory' 
@@ -400,27 +399,26 @@ for (var in c('alerting', 'orienting', 'conflict')) {
                                                 cache_label = paste0(cache_dir, '/not-ours-ant-', var), subset_col = 'group',
                                                 iter = iter, sd_prior = sd_prior, adapt_delta = adapt_delta)
     
-    if (get_hostname() != 'rstudio') {
-      # forest plot for all studies
-      forester(
-        select(all_except_our_data, Study),
-        all_except_our_data$est,
-        all_except_our_data$ci_low,
-        all_except_our_data$ci_high,
-        estimate_col_name = estimate_col_name,
-        null_line_at = 0,
-        font_family = "serif",
-        x_scale_linear = TRUE,
-        xlim = c(-1.2, 1.2),
-        xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
-        arrows = FALSE,
-        arrow_labels = c("Low", "High"),
-        nudge_y = -0.2,
-        estimate_precision = 2,
-        display = FALSE,
-        file_path = here::here(paste0(not_ours_forest_file))
-      )
-    }
+    # forest plot for all studies
+    forester(
+      select(all_except_our_data, Study),
+      all_except_our_data$est,
+      all_except_our_data$ci_low,
+      all_except_our_data$ci_high,
+      estimate_col_name = estimate_col_name,
+      null_line_at = 0,
+      font_family = "serif",
+      x_scale_linear = TRUE,
+      xlim = c(-1.2, 1.2),
+      xbreaks = c(-1.2, -1, -.8, -.5, -.3, 0, .3, .5, .8, 1, 1.2),
+      arrows = FALSE,
+      arrow_labels = c("Low", "High"),
+      nudge_y = -0.2,
+      estimate_precision = 2,
+      display = FALSE,
+      file_path = here::here(paste0(not_ours_forest_file))
+    )
+
     rm(rem_not_ours, all_except_our_data)
     gc()
   }
