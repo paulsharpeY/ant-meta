@@ -346,7 +346,7 @@ for (var in c('alerting', 'orienting', 'conflict')) {
       prior = c(prior_string("normal(0,1)", class = "Intercept"),
                 prior_string(sd_prior, class = "sd")),
       control = list(adapt_delta = adapt_delta),
-      file = paste0(cache_dir, 'all-', var, '-brms')
+      file = paste0(cache_dir, '/all-', var, '-brms')
     )
     
     all_data <- brms_object_to_table(rem_all, effects %>% select(Study, group),
