@@ -316,7 +316,8 @@ conflict  <- mutate(conflict, score = 'conflict')
 effects   <- bind_rows(alerting, orienting, conflict) %>%
   rename(Study = study)
 
-## Forest plots
+## Forest plots with RoB blobbograms rely on a fork which implements the forest plot using a Bayesian model
+## Requires install of https://github.com/paulsharpeY/robvis to make forest plots
 
 for (var in c('alerting', 'orienting', 'conflict')) {
   if (var == 'conflict') {

@@ -1,0 +1,28 @@
+%% For Mindfulness editorial compliance
+\usepackage{setspace}
+\doublespacing
+\fontsize{12}{18}
+%
+\usepackage{booktabs} % for \toprule
+% These are needed for my kableExtra tables
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{threeparttablex}
+\usepackage{longtable}
+% to float figures and tables to end of document using \processdelayedfloats
+% comment next line, and ...
+\usepackage{float}
+% uncomment next 3 lines
+\usepackage[tablesfirst,nofiglist,notablist]{endfloat}
+\DeclareDelayedFloatFlavour{ThreePartTable}{table}
+% suppress caption labels and text beside figures and tables
+\usepackage[labelformat=empty,textformat=empty]{caption}
+\usepackage{tabu}
+\usepackage{makecell}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+%%

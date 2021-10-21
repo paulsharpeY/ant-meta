@@ -1,0 +1,625 @@
+---
+blind: true
+title: |
+  Mindfulness meditation and the Attention Network Test: a systematic review and meta-analysis
+graphics: yes
+key1: mindfulness
+key2: meditation
+key3: Attention Network Test
+key4: attention
+key5: meta-analysis
+always_allow_html: true
+output:
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+    latex_engine: lualatex
+    # use default pandoc template as it does the right thing with CSLReferences in 2.11.4
+    template: null
+    includes:
+      in_header: templates/mindfulness.tex
+    keep_tex: true
+  bookdown::word_document2:
+    reference_docx: templates/mindfulness.docx
+  #bookdown::html_document2: default
+documentclass: article
+bibliography: references.bib
+csl: templates/apa.csl
+---
+
+```{r setup-ab-short, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", out.extra = "")
+
+library(tidyverse)
+library(psy.phd)
+library(kableExtra)
+library(BayesFactor)
+library(english)
+library(psy)
+library(pwr)
+library(effsize)
+library(robvis)
+
+results_dir <- 'results'
+
+# constants
+line_size <- .8
+
+# meta-analysis repo: review-meditation-ant
+#meta_ant_dir      <- '../review-meditation-ant'
+meta_ant_dir      <- '.'
+meta_ant_data_dir <- paste0(meta_ant_dir, '/data')
+
+read_meta_ant_data <- function(filename) {
+  readRDS(paste(meta_ant_data_dir, paste0(filename,'.Rd'), sep = '/'))
+}
+```
+
+# Abstract
+
+**Objectives:**
+
+**Methods:**
+
+**Results:** 
+
+**Conclusions:** 
+
+**Keywords:** mindfulness, meditation, Attention Network Test, attention, replication
+
+\clearpage
+
+A meta-analysis of all mindfulness research involving the ANT was used to assess whether the original
+studies were sufficiently powered to detect effects, and to inform power calculations for further replications.
+
+# Methods
+
+## Inclusion and Exclusion Criteria
+
+Say why ANT error scores weren't analysed (rarely see diffs?).
+
+Studies of healthy adult populations (age 18 and above) with a mindfulness group, and ANT RTs as an outcome variable
+were eligible for inclusion. Tai chi and hatha yoga interventions were excluded unless the training clearly emphasised
+mindfulness. Studies were drawn from English language peer reviewed journal articles, published up to and including
+2019.
+
+Due to the small number of studies in this field, both cohort and case-control studies were included. Cohort studies
+compare ANT performance in groups who complete a mindfulness intervention, with groups who complete one or more control
+interventions. An 'intervention' could be a single meditation, or a longer period of mindfulness training. Case-control
+studies are used to compare groups with differing levels of meditation experience. Groups are normally matched on a
+range of factors, notably age, sex and education.
+
+## Study Selection
+
+The study was conducted in accordance with the Preferred Reporting Items for Systematic Reviews and Meta-analyses
+[PRISMA\; @pagePRISMA2020Statement2020] guidelines. The term `("attention network test" OR "attention network task") AND
+(meditat* OR mindfulness)` was used to search CINAHL (CINAHL Plus with Full Text, AMED, MEDLINE), Cochrane Library,
+PsycInfo, PubMed, Scopus, and Web of Science databases in December 2019. Full text search options were selected where
+available. Inclusion and exclusion criteria were applied to titles, abstracts and full text of eligible studies (see
+\@ref(fig:ant-selection)). Tables \@ref(tab:ant-rct)--\@ref(tab:ant-nct) summarise the randomised, non-randomised and
+non-controlled studies included in the meta-analysis. Requests were made to the original investigators where data
+required for calculating effect sizes were unavailable in the published article.
+
+```{r ant-selection, fig.pos = "h", out.extra = "", fig.align='center', fig.cap="PRISMA flow diagram of study selection.", out.width="100%", eval=TRUE}
+knitr::include_graphics("img/selection.png")
+```
+
+```{r ant-studies}
+studies <- read_csv(paste0(meta_ant_data_dir, '/include.csv')) %>%
+  select(publication,type, age, experience, treatment, treatment_duration, control, control_duration,
+         meditation_pre, meditation_post, task, trials, alerting, orienting, executive) %>%
+  mutate(alerting = replace_na(alerting, 'NA')) %>%
+  mutate(alerting = factor(alerting),
+         publication = ifelse(publication == 'Schotz et al. (2015)', "Sch\u00f6tz et al. (2015)", publication)
+         ) %>%
+  arrange(publication)
+yarp <- '#2E8B57'
+```
+
+```{r ant-rct, eval=TRUE}
+rct <- studies %>% filter(type == 'RCT') %>% select(-type)
+assumed_ant_a <- function(x) {
+  gsub('NIa', paste0('NI', footnote_marker_symbol(1, double_escape = TRUE)), x)
+}
+assumed_ant_b <- function(x) {
+  gsub('NIb', paste0('NI', footnote_marker_symbol(2, double_escape = TRUE)), x)
+}
+rct %>%
+  mutate_all(linebreak) %>%
+  mutate(
+    # alerting  = cell_spec(alerting, background = c(rep('red', 3), 'lightgray', 'red', 'gray', rep('red', 6), yarp, 'red')),
+    # orienting = cell_spec(orienting, background = c(rep('red', 5), 'gray', rep('red', 6), yarp, 'red')),
+    # executive = cell_spec(executive, background = c(rep(yarp, 5), rep('red', 6), rep(yarp, 3))),
+    across(alerting:executive, assumed_ant_a),
+    across(alerting:executive, assumed_ant_b)
+    ) %>%
+  kable(caption = "Summary of randomised, controlled meditation studies which include an ANT RT outcome.",
+    booktabs = T, escape = F,
+    col.names = linebreak(c('Publication','Age (mean/range)', 'Meditation experience', 'Treatment (\\textit{n})',
+      'Treatment\nduration','Control (\\textit{n})', 'Control\nduration', 'ANT 1','ANT 2','Task','Trials',
+      'Alerting','Orienting','Executive'), align='l')) %>%
+    column_spec(c(1), width = "16em") %>%
+    column_spec(c(2:3, 5), width = "10em") %>%
+    column_spec(c(6, 13:14), width = "9em") %>%
+    column_spec(c(4, 7), width = "7em") %>%
+    row_spec(c(2, 3, 5, 7:11, 13, 14), bold = T) %>%
+    kable_styling(latex_options = c('scale_down')) %>%
+    add_header_above(c(" " = 7, "Minutes after meditation" = 2, " " = 2, "ANT calculation" = 3)) %>%
+    footnote(general = "CT = cognitive training; FAM = focused attention meditation; IBMT = integrative body-mind training; MM = mindfulness meditation; MT = mindfulness training; OMM = open monitoring meditation; ANT = Attention Network Test; NC = no cue; CC = centre cue; DC = double cue; SC = spatial cue; C = congruent flankers; I = incongruent flankers; RT = reaction time; CRSD-ANT = Centre for Research on Safe Driving-ANT; NI = no information; NA = not applicable.",
+             symbol = c('Assume calculations specified in Fan et al. (2002)'),
+             threeparttable = T) %>% landscape()
+```
+
+```{r ant-ct, tab.cap = 'ANT CT study characteristics', eval=TRUE}
+ct <- studies %>% filter(type == 'CT') %>% select(-type)
+ct %>%
+  mutate_all(linebreak) %>%
+  mutate(
+         # alerting = cell_spec(alerting, background = c('red', yarp, rep('red', 7))),
+         # orienting = cell_spec(orienting, background = c(rep('red', 9))),
+         # executive = cell_spec(executive, background = c('red', yarp, rep('red', 4), yarp, 'red', 'red')),
+         across(alerting:executive, assumed_ant_a),
+         across(alerting:executive, assumed_ant_b)
+         ) %>%
+  kable(caption = "Summary of non-randomised, controlled meditation studies which include an ANT RT outcome.",
+    booktabs = T, escape = F,
+    col.names = linebreak(c('Publication', 'Age (mean/range)', 'Meditation experience',
+                            'Treatment (\\textit{n})', 'Treatment\nduration','Control (\\textit{n})',
+                            'Control\nduration', 'ANT 1','ANT 2','Task','Trials', 'Alerting', 'Orienting',
+                            'Executive'), align='l')) %>%
+    column_spec(c(1), width = "16em") %>%
+    column_spec(c(7), width = "4em") %>%
+    column_spec(c(2, 8), width = "5em") %>%
+    column_spec(c(3, 6), width = "9em") %>%
+    column_spec(c(4, 5), width = "7em") %>%
+    row_spec(c(1, 3:5, 7, 9), bold = T) %>%
+    kable_styling(latex_options = c('scale_down')) %>%
+    add_header_above(c(" " = 7, "Meditation lag" = 2, " " = 2, "ANT calculation" = 3)) %>%
+    footnote(general = "FA = focused attention; MBSR = mindfulness based stress reduction; OM = open monitoring; ANT = Attention Network Test; OAE = Older adults meditation-experts; OAN = Older adults meditation-naïve; Younger adults meditation-naïve; NC = No cue; CC = Centre cue; DC = Double cue; SC = Spatial cue; C = Congruent flankers; I = Incongruent flankers; NI = No information; NA = Not applicable.",
+             symbol = c('Assume calculations specified in Fan et al. (2002)'),
+             threeparttable = T) %>%
+  landscape()
+```
+
+```{r ant-nct, tab.cap = 'ANT NCT study characteristics', eval=TRUE}
+nct <- studies %>% filter(type == 'NCT') %>% select(-type)
+nct %>%
+  mutate_all(linebreak) %>%
+  mutate(
+    # alerting  = cell_spec(alerting, background = 'red'),
+    # orienting = cell_spec(orienting, background = 'red'),
+    # executive = cell_spec(executive, background = 'red'),
+         across(alerting:executive, assumed_ant_a),
+         across(alerting:executive, assumed_ant_b)
+         ) %>%
+  kable(caption = "Summary of non-randomised, non-controlled meditation studies which include an ANT RT outcome.",
+    booktabs = T, escape = F,
+    col.names = linebreak(c('Publication','Age (mean/range)', 'Meditation experience',
+                            'Treatment (\\textit{n})', 'Treatment\nduration', 'Control (\\textit{n})', 'Control\nduration', 'ANT 1',
+                            'ANT 2','Task','Trials', 'Alerting', 'Orienting', 'Executive'), align='l')) %>%
+    add_header_above(c(" " = 7, "Meditation lag" = 2, " " = 2, "ANT calculation" = 3)) %>%
+    column_spec(c(1:2, 5), width = "14em") %>%
+    column_spec(c(7), width = "5em") %>%
+    kable_styling(latex_options = c('scale_down')) %>%
+    footnote(general = "MBCT = mindfulness based cognitive therapy; MBSR = mindfulness based stress reduction; ANT = Attention Network Test; ANT-R = Revised Attention Network Test; NC = No cue; CC = Centre cue; DC = Double cue; SC = Spatial cue; C = Congruent flankers; I = Incongruent flankers; NI = No information; NA = Not applicable.",
+             symbol = c('Assume Fan et al. (2002)', 'Assume Fan et al. (2009)'),
+             threeparttable = T) %>%
+  landscape()
+```
+
+## Data Analyses
+
+Meta-analyses were stratified by study type (randomised or non-randomised) and the meditation experience of participants
+(novice or experienced). Effect sizes and their confidence intervals were calculated for alerting, orienting and
+executive attention RTs. Effect sizes for ANT error rates were not analysed, as they are rarely reported. Studies were
+assessed using two risk of bias tools. The individually-randomised, parallel-group trials were assessed for bias arising
+from the randomization process, deviations from the intended intervention, missing outcome data, outcome measurement,
+and selection of the reported result, using the RoB 2 tool [@sterneRoBRevisedTool2019]. The non-randomised studies were
+assessed for bias due to confounding, selection of participants, classification of interventions, deviations from the
+intended intervention, missing data, outcome measurement, and selection of the reported result, using the ROBINS-I tool
+[@sterneROBINSIToolAssessing2016]. Funnel plots were used to test for publication bias
+[@sterneRecommendationsExaminingInterpreting2011].
+
+Bayesian meta-analyses were conducted on the three ANT outcomes for the randomised and non-randomised studies. Effect
+sizes for each study were calculated so that a positive number represented a better ANT score for the mindfulness
+condition, where 'better' means higher alerting and orienting scores, and lower executive attention scores. For
+case-control studies this means better ANT scores in the meditation condition relative to the control condition. For
+cohort studies, this means a greater improvement in ANT scores over time in the meditation condition relative to the
+control condition.
+
+Effects were pooled for experienced and novice subgroups within each ANT outcome. A pooled standardised mean difference
+(SMD) was estimated using a model which gave greater weight to studies with larger sample sizes. Study was included as a
+random effect, as effect sizes were assumed to vary by study [@harrer13BayesianMetaAnalysis]. A normal (0,1) prior was
+specified for the pooled effect estimate, on the basis that small effects are more likely than large effects, and that
+positive or negative effects are equally likely. A half-Cauchy (0,.3) prior was specified for the standard deviation in
+effect sizes. This gave most prior weight to small variations in the pooled effect, but still allowed some likelihood
+for wider variance from the average effect size. A 95% highest-density continuous interval (HDCI) was calculated for
+each study and also for the pooled effects. The HDCI is the shortest single range in which 95% of the posterior density
+falls. This differs from the Highest Density Interval which can create multiple intervals if the posterior were bimodal
+[@kruschkeDoingBayesianData2015]. The HDCI it is the range within which we are 95% sure that the true effect lies,
+conditional on the data and model. Models were built using `brms` [@brms].
+
+# Results
+
+The database search produced 222 results, 85 of which were duplicates. From the remaining 137 items, 88 were excluded by
+screening at the title and abstract level. Thirty of the remaining 49 items were excluded during full text screening.
+These included non-mindfulness training studies (n=17), studies which used an outcome measure other than ANT (n=5),
+study protocols without published data (n=3), review articles (n=2), and studies where participants were under 18 (n=1),
+or reported subjective cognitive complaints (n=1). One study with negative baseline alerting and orienting scores
+[@quanSevenDaysMindfulnessbased2018] was excluded because the ANT is not expected to produce negative scores
+[@macleodAppraisingANTPsychometric2010, p.646]. Twenty-five experiments were included in the review, including the five
+studies reported in this research, and one article containing two experiments [@tsaiAttentionalOrientingExecutive2016].
+
+Sixteen experiments were included in the meta-analysis. Of the nine exclusions, RT data was unavailable for
+@jhaMindfulnessTrainingModifies2007, Norris et al. [-@norrisBriefMindfulnessMeditation2018, Study 2],
+@schancheCanClinicalPsychology2019,
+@spadaroExploringEffectsOnline2016, @sperdutiProtectiveRoleLongterm2016, @tangShorttermMeditationTraining2007, and
+@vandenhurkGreaterEfficiencyAttentional2010. Both the emotional ANT [@ainsworthEffectFocusedAttention2013], and the
+modified ANT described by @elliottWeeklongMeditationRetreat2014 were considered to be too different to the majority of
+ANT tasks to be included in the meta-analysis. For Tsai and Chou [-@tsaiAttentionalOrientingExecutive2016, Experiment
+1], the comparison with the largest sample sizes was chosen. This was the comparison between meditators and
+non-meditators, rather than the comparison between FA and OM in the meditation group.
+
+Table \@ref(tab:ant-results) summarises the hypotheses and outcomes for all studies. Bold cells indicate that the effect
+of mindfulness was greater than the control condition. The adjacent cell is also bold if this finding matched the
+hypothesis. The outcomes in Table \@ref(tab:ant-results) are based on this author's interpretation of the results of
+each study. In four cases [@becerraCanSpecificAttentional2017; @tsaiAttentionalOrientingExecutive2016, Experiments 1 and
+2; @vandenhurkGreaterEfficiencyAttentional2010], this interpretation differed from that of the original author(s).
+
+```{r ant-results, eval=TRUE}
+ant_incorrect_a <- function(x) {
+  gsub('incorrecta', paste0('T1 > C', footnote_marker_symbol(3, double_escape = TRUE)), x)
+}
+ant_incorrect_b <- function(x) {
+  gsub('incorrectb', paste0('C > T1', footnote_marker_symbol(4, double_escape = TRUE)), x)
+}
+ant_incorrect_c <- function(x) {
+  gsub('incorrectc', paste0('T1 > C', footnote_marker_symbol(5, double_escape = TRUE)), x)
+}
+ant_incorrect_d <- function(x) {
+  gsub('incorrectd', paste0('C > T1', footnote_marker_symbol(6, double_escape = TRUE)), x)
+}
+ant_incorrect_e <- function(x) {
+  gsub('incorrecte', paste0('C > T1', footnote_marker_symbol(7, double_escape = TRUE)), x)
+}
+ant_incorrect_f <- function(x) {
+  gsub('incorrectf', paste0('T1 > C', footnote_marker_symbol(8, double_escape = TRUE)), x)
+}
+meta_ant <- read_csv(paste0(meta_ant_data_dir, '/results.csv')) %>%
+  mutate(group = factor(group, levels = c('novice', 'experienced','exclude'))) %>%
+  arrange(group, publication)
+meta_ant %>%
+  select(publication, type, treatment1, treatment2, control, ant,
+         alerting_h, alerting_r, orienting_h, orienting_r, executive_h, executive_r) %>%
+  mutate(publication = ifelse(publication == 'Schotz et al. (2015)', "Sch\u00f6tz et al. (2015)", publication)) %>%
+  select(-type) %>%
+  mutate(across(everything(), linebreak)) %>%
+  mutate(
+    across(alerting_r, ant_incorrect_a),
+    across(orienting_r, ant_incorrect_b),
+    across(alerting_r:orienting_r, ant_incorrect_c),
+    across(orienting_r, ant_incorrect_d),
+    across(orienting_r, ant_incorrect_e),
+    across(executive_r, ant_incorrect_f),
+    alerting_h = cell_spec(alerting_h, bold = c(T, rep(F, 18), T, rep(F, 6)), escape = FALSE),
+    alerting_r = cell_spec(alerting_r, bold = c(T, rep(F, 5), T, rep(F, 12), T, rep(F, 6)), escape = FALSE),
+    orienting_h = cell_spec(orienting_h, bold = c(rep(F, 19), T, rep(F, 6)), escape = FALSE),
+    orienting_r = cell_spec(orienting_r, bold = c(T, rep(F, 5), T, rep(F, 12), T, rep(F, 6)), escape = FALSE),
+    executive_h = cell_spec(executive_h, bold = c(T, F, T, rep(F, 4), T, rep(F, 8), rep(T, 3), F, T, T, F, T, T, F), escape = FALSE),
+    executive_r = cell_spec(executive_r, bold = c(rep(T, 3), rep(F, 3), T, T, rep(F, 6), T, F, rep(T, 3), F, T, T, F, T, T, F), escape = FALSE)
+  ) %>%
+  kable(caption = "Results of ANT studies.",
+    booktabs = T, escape = F,
+    col.names = linebreak(c(paste0('Publication', footnote_marker_symbol(1)), 'Treatment 1 (T1)', 'Treatment 2 (T2)', 'Control', paste0('ANT', footnote_marker_symbol(2)),
+      'Hypotheses', 'Outcomes', 'Hypotheses', 'Outcomes', 'Hypotheses', 'Outcomes'), align='l')
+  ) %>%
+  column_spec(c(1), width = "16em") %>%
+  column_spec(c(6:10), width = "9em") %>%
+  collapse_rows(columns = 1, latex_hline = "full", valign = "middle") %>%
+  kable_styling(latex_options = c('scale_down')) %>%
+  # avoid namespace clash with dplyr::group_rows
+  kableExtra::group_rows('Novice meditators', 1, 8) %>%
+  kableExtra::group_rows('Experienced meditators', 9, 16) %>%
+  kableExtra::group_rows('Not included in meta-analysis', 17, 25) %>%
+  add_header_above(c(" " = 5, "Alerting" = 2, "Orienting" = 2, "Executive" = 2)) %>%
+  footnote(general = "\\\\textbf{Bold} = effect of meditation/supported hypothesis; CT = cognitive training; FAM/FA = focused attention meditation; IBMT = integrative body-mind training; MBCT = mindfulness based cognitive therapy; MBSR = mindfulness based stress reduction; MM = mindfulness meditation; OMM/OM = open monitoring meditation; ANT = Attention Network Test; OAE = Older adults meditation-experts; OAN = Older adults meditation-naïve; Younger adults meditation-naïve; NI = No information; NA = Not applicable.",
+           symbol = c('1 = ANT before intervention(s) or between groups; 2 = ANT after intervention(s).',
+                      'Jha (2007): ANT=1 is a hypothesis of meditation experience; ANT=2 are hypotheses of dorsal function (Orienting, Executive), and ventral function (Alerting).',
+                      'Becerra et al. (2016) report MT = control.', 'Becerra et al. (2016) report MT = control.',
+                      'Tsai and Chou (2016) report MT = control.', 'Tsai and Chou (2016) report Meditators > controls.',
+                      'van den Hurk et al. (2010) report Meditators > controls.', 'Main effect of group in condition x trial type (congruent, incongruent) ANOVA.'),
+           threeparttable = T, escape = FALSE) %>%
+  landscape()
+```
+
+Effects of mindfulness on the ANT are consistently low, with no group differences in most studies. There were 13
+comparisons where meditation improved executive attention, three where it improved alerting, two where it improved
+orienting, and one where the control group scored higher on orienting than the meditation group.
+
+Overall risk of bias for the randomized studies was moderate, and driven by three domains. Half of the studies showed
+some concerns regarding randomisation procedures (Domain 1). A quarter of studies showed concerns or high risk of bias
+due to deviations from the intervention (Domain 2). Three quarters of studies showed some concerns regarding selection
+of the reported result (Domain 5), primarily because analysis plans were not pre-registered. Overall risk of bias in the
+non-randomized studies was serious, and was driven three domains. Three quarters of studies were at serious risk of bias
+due to confounding (Domain 1). All studies were at moderate or serious risk of bias due to deviations from the intended
+interventions (Domain 4). Finally, all studies were at moderate risk of bias in selection of the reported result, again
+because they did not pre-register an analysis plan.
+
+The following meta-analyses estimate the true effect of meditation on the ANT in novices and experienced meditators.
+Bayesian meta-analysis produces a posterior distribution which summarises the probabilities we assign to a range of
+effect sizes. The HDCI is derived from this distribution, and shows the range within which we are 95% sure that the true
+effect lies. Bayesian meta-analyses also allow us to make probability statements about effect sizes, which place
+reasonable upper and lower bounds on the true effect of meditation on attention. Where effect sizes are not qualified,
+they refer to the SMD (Hedges' *g*). Traditionally, SMDs of 0.2, 0.5 and 0.8 are are considered small, medium and large
+respectively [@cohenPowerPrimer1992]. When interpreting the ANT, improved performance is traditionally indicated by
+higher alerting and orienting scores, and lower executive attention lower scores
+[@fanTestingEfficiencyIndependence2002]. To simplify the meta-analysis results, values have been adjusted so that
+positive values for all ANT scores reflect improvements in the meditation condition. A HDCI which does not overlap zero
+provides certainty over the direction of an effect.
+
+The meta-analyses included eight effects for novices, all from randomised studies, and five effects for experienced
+meditators from non-randomised studies. The only randomised experiments involving experienced meditators were studies 2
+and 3 in the current research. Funnel plots indicated that SMD estimates for alerting, orienting and executive attention
+were not affected by publication bias (see Supplementary Materials).
+
+```{r effect-probabilities}
+# small = 0.2, medium = 0.5, large = 0.8
+p_effect <- read_meta_ant_data('p_effect') %>%
+  mutate(across(small:neg_medium, ~round(.x * 100)))
+```
+
+### Executive attention
+
+```{r forest-executive, fig.align='center', fig.cap="Forest plot for alerting", out.width="100%"}
+knitr::include_graphics("figures/all-executive.png")
+```
+
+The pooled effect for novices in Figure \@ref(fig:forest-executive) shows evidence of a small improvement (*SMD* = 0.14) in executive attention. Based on the data observed, there is a 
+`r with(p_effect, small[type == 'rct' & experience == 'Novice' & var == 'conflict'])`% chance that the effect is > 0.2,
+and a
+`r with(p_effect, medium[type == 'rct' & experience == 'Novice' & var == 'conflict'])`% chance that it is > 0.5. For the randomised studies involving experienced meditators, Figure \@ref(fig:forest-executive) shows a very small (*SMD* = 0.05) pooled effect. There is a
+`r with(p_effect, small[type == 'rct' & experience == 'Experienced' & var == 'conflict'])`% chance that the effect is > 0.2,
+and a
+`r with(p_effect, medium[type == 'rct' & experience == 'Experienced' & var == 'conflict'])`% chance that it is > 0.5.
+
+There is evidence of a slightly
+larger effect of meditation (*SMD* = 0.15) than in the randomised studies. There is a
+`r with(p_effect, small[type == 'ct' & experience == 'Experienced' & var == 'conflict'])`% chance that the effect
+is > 0.2.
+
+### Alerting
+
+```{r forest-alerting, fig.align='center', fig.cap="Forest plot for alerting", out.width="100%"}
+knitr::include_graphics("figures/all-alerting.png")
+```
+
+The pooled effect for novices in Figure \@ref(fig:forest-alerting) shows minimal effects (*SMD* = 0.01) of
+meditation on alerting in novices. Based on the data observed, there is a
+`r with(p_effect, small[type == 'rct' & experience == 'Novice' & var == 'alerting'])`% chance that the effect is > 0.2.
+One study [@sharpeEffectsMindfulnessMeditation2021, Experiment 4] found the reverse effect -- that alerting was better
+in the control condition than the experimental condition. For the randomised studies
+involving experienced meditators, Figure \@ref(fig:forest-alerting) also shows a small (*SMD* = 0.18) improvement
+in alerting. There is a
+`r with(p_effect, small[type == 'rct' & experience == 'Experienced' & var == 'alerting'])`% chance that the effect is > 0.2,
+and a
+`r with(p_effect, medium[type == 'rct' & experience == 'Experienced' & var == 'alerting'])`% chance that it is > 0.5.
+There is also a
+`r with(p_effect, neg_small[type == 'rct' & experience == 'Experienced' & var == 'alerting'])`% chance that meditation
+has a negative effect on alerting, with an effect size > 0.2.
+
+Figure \@ref(fig:forest-alerting) shows results for the non-randomised studies. There is minimal
+evidence (*SMD* = 0.04) that meditation improves alerting. There is a
+`r with(p_effect, small[type == 'ct' & experience == 'Experienced' & var == 'alerting'])`% chance that the effect is > 0.2,
+and a
+`r with(p_effect, neg_small[type == 'ct' & experience == 'Experienced' & var == 'alerting'])`% chance 
+that meditation has a negative effect on alerting, with an effect size > 0.2.
+
+### Orienting
+
+```{r forest-orienting, fig.align='center', fig.cap="Forest plot for alerting", out.width="100%"}
+knitr::include_graphics("figures/all-orienting.png")
+```
+
+The pooled effect for novices in Figure \@ref(fig:forest-orienting) shows that meditation has a very small (*SMD* = -0.07), negative effect on orienting. Based on the data observed, there is a
+`r with(p_effect, neg_small[type == 'rct' & experience == 'Novice' & var == 'orienting'])`% chance that this effect is > 0.2,
+and a `r with(p_effect, neg_medium[type == 'rct' & experience == 'Novice' & var == 'orienting'])`% chance that it is > 0.5.
+There is also a
+`r with(p_effect, small[type == 'rct' & experience == 'Novice' & var == 'orienting'])`% chance that meditation has a positive effect on orienting, with an effect size > 0.2. For the randomised studies involving experienced meditators, Figure \@ref(fig:forest-orienting) also shows a small (*SMD* = -0.19), negative orienting effect, mostly driven by Sharpe [-@sharpeEffectsMindfulnessMeditation2021, Experiment 2]. There is a
+`r with(p_effect, neg_small[type == 'rct' & experience == 'Experienced' & var == 'orienting'])`% chance that the effect is > 0.2, and a
+`r with(p_effect, neg_medium[type == 'rct' & experience == 'Experienced' & var == 'orienting'])`% chance that it is > 0.5.
+There is also a
+`r with(p_effect, small[type == 'rct' & experience == 'Experienced' & var == 'orienting'])`% chance that meditation improves
+orienting in experienced meditators, with an effect size > 0.2, and a
+`r with(p_effect, medium[type == 'rct' & experience == 'Experienced' & var == 'orienting'])`% chance that this effect is > 0.5.
+
+Figure \@ref(fig:forest-orienting) shows results for the non-randomised studies. There is minimal evidence that
+meditation improves alerting (*SMD* = 0.03). There is a
+`r with(p_effect, small[type == 'ct' & experience == 'Experienced' & var == 'orienting'])`% chance that the effect is > 0.2.
+
+
+# Discussion
+
+
+
+
+# References
+
+::: {#refs}
+:::
+
+\clearpage
+\processdelayedfloats
+\clearpage
+
+\listoffigures
+\listoftables
+\pagebreak
+
+\clearpage
+
+# Supplementary Materials
+
+## Meta-analysis {#app-ant-meta}
+
+### ANT scores
+
+\begin{equation}
+Alerting = RT_{no-cue} - RT_{double\ cue} (\#eq:alerting)
+\end{equation}
+
+\begin{equation}
+Orienting  = RT_{centre\ cue} - RT_{spatial\ cue} (\#eq:orienting)
+\end{equation}
+
+\begin{equation}
+Conflict = RT_{flanker\ incongruent} - RT_{flanker\ congruent} (\#eq:conflict)
+\end{equation}
+
+### Meta-analysis
+
+The meta-analysis for each ANT variable was built using the `brmsformula`
+
+\begin{equation}
+smd | se(se) \sim 1 + (1 | study)
+\end{equation}
+
+This models the study SMD `smd` and its standard error `se(se)` in terms of an overall intercept `1` (fixed effect), and
+a random effect for each study `(1 | study)`.
+
+### Supporting formulas {#supporting-formulas}
+
+\begin{equation}
+SE = \frac{CI95_{upper} - CI95_{lower}}{3.92} (\#eq:se)
+\end{equation}
+
+95% confidence interval for Cohen's d [@rosnowEffectSizesWhy2009].
+
+\begin{equation}
+df = n1 + n2 - 2
+\end{equation}
+
+\begin{equation}
+CI95 = \sqrt{\left(\frac{n_1 + n_2}{n_1n_2} + \frac{d^2}{2df} \right) \frac{n_1 + n_2}{df}} (\#eq:ci95)
+\end{equation}
+
+\begin{equation}
+SD_{pooled} = \sqrt{\frac{(n_1 - 1)SD_1^2 + (n_2 - 1)SD_2^2}{n_1 + n_2 - 2}} (\#eq:sd)
+\end{equation}
+
+For each _ANT_ score (_Alerting_, _Orienting_, _Conflict_), equation \@ref(eq:antsmd) defines the standardized mean
+difference (SMD) between groups. This formula is Hedges' _g_ [@higginsChapterChoosingEffect2019, Section 6.5.1.2].
+
+\begin{equation}
+SMD = \frac{mean(ANT_{group1}) - mean(ANT_{group2})}{SD_{pooled}(n_{group1}, n_{group2}, sd(ANT_{group1}), sd(ANT_{group2}))} (\#eq:antsmd)
+\end{equation}
+
+@joMeditationAttentionControlled2016 and @tsaiAttentionalOrientingExecutive2016 reported standard errors. These were
+  converted to standard deviations using equation \@ref(eq:se2sd) [@higginsChapterChoosingEffect2019, Section 6.5.2.2].
+
+\begin{equation}
+SD = SE \times \sqrt{n} (\#eq:se2sd)
+\end{equation}
+
+@kwakEnhancedAttentionalNetwork2020 did not include standard deviations for pre and post ANT scores by condition. These
+  were imputed using equation \@ref(eq:sdimpute), which is based on Higgins et al. [-@higginsChapterChoosingEffect2019,
+  Section 6.5.2.2]. In each calculation, $ant1$ and $ant2$ are the trial types used to compute the alerting, orienting
+  or executive ANT score, and $Corr$ was calculated using data from Study 5 as the correlation between the mean RT by
+  participant for the same trial types.
+
+\begin{equation}
+SD_{imputed} = \sqrt{SD^2_{ant1} + SD^2_{ant2} - (2 \times Corr \times SD_{ant1} \times SD_{ant2})} (\#eq:sdimpute)
+\end{equation}
+
+## Results
+
+### Meta-analysis
+
+#### Risk of bias: Randomised studies
+
+Figure \@ref(fig:ant-rob-traffic) summarises the risk of bias assessments for the randomised studies. The traffic-light
+plots in this and Figure \@ref(fig:ant-robins-traffic) were generated using `robvis` [@robvis]. Concerns in Domain 1
+related to the randomisation method, which was either unspecified, or potentially non-random. Only
+@walshEffectsMindfulnessMeditation2019 specified that the allocation sequence was concealed until participants were
+  assigned to interventions. In Domain 2, one study [@ainsworthEffectFocusedAttention2013] was assessed as being at high
+  risk of bias, because there was no information about whether participants complied with the assigned daily meditation.
+  There were some concerns that the lack of supervision in Study 3 in the current research risked non-adherence to
+  interventions that could have affected participants' outcomes. In Domain 5, concerns regarding bias in the reported
+  result were for studies which did not pre-register an analysis plan.
+
+```{r ant-rob-traffic, fig.pos = "h", out.extra = "", out.width = "70%", fig.align="center", fig.cap="Risk of Bias in individually-randomised studies, assessed using RoB 2."}
+rob2 <- read_csv(paste0(meta_ant_data_dir, '/rob2.csv'))
+rob_traffic_light(data = rob2 %>% select(-Weight) %>% mutate(Study = gsub("Experiment ", "E", .$Study)), psize=5, tool = "ROB2")
+```
+
+#### Risk of bias: Non-randomised studies
+
+Figure \@ref(fig:ant-robins-traffic) summarises risk of bias assessments for the non-randomised studies, including the
+two studies without control conditions [@schancheCanClinicalPsychology2019; @spadaroExploringEffectsOnline2016]. Many of
+these were case-control studies involving long-term meditators. Long-term meditators might systematically differ from
+controls in many ways other than their lifetime meditation duration. For example, an *innate* ability to focus attention
+might attract people to meditation, but their long-term practice may have little or no effect on attention. In Domain 1,
+studies which included a long-term meditator group [@isbelCognitiveMechanismsMindfulness2015;
+@jhaMindfulnessTrainingModifies2007;
+@joMeditationAttentionControlled2016; @ottenPsychophysiologyDurationEstimation2015;
+@schotzTimePerceptionMindfulness2016;
+@sperdutiProtectiveRoleLongterm2016; @tsaiAttentionalOrientingExecutive2016 Experiment 1;
+@vandenhurkGreaterEfficiencyAttentional2010; @wittmannSubjectiveExpansionExtended2015] were rated as being at serious
+risk of confounding, because these additional variables were not measured or controlled for. For similar reasons, these
+studies were classified as being at serious risk of bias due to deviation from intended interventions (Domain 4).
+Long-term meditators are also likely differ from controls in ways which should be treated as "co-interventions"
+[@sterneROBINSIToolAssessing2016]. For example, many Buddhist meditators maintain a number of ethical precepts e.g. a
+commitment to restrain their speech and actions, potentially leading to cognitive and behavioural differences which
+should also be controlled for. A complete list of co-interventions would be extensive, difficult to measure and
+impossible to control for. Also in Domain 4, @schancheCanClinicalPsychology2019 and @spadaroExploringEffectsOnline2016
+were assessed as being at moderate risk of bias, due to their lack of a control condition. All studies were assessed as
+being at moderate risk or above for bias in selection of the reported result (Domain 7), as they did not pre-register an
+analysis plan.
+
+```{r ant-robins-traffic, fig.pos = "h", out.extra = "", fig.cap="Risk of bias in non-randomised studies, assessed using ROBINS-I.", out.width = "70%", fig.align="center"}
+robins <- read_csv(paste0(meta_ant_data_dir, '/robins.csv')) %>% mutate(Study = str_trunc(Study, 25))
+rob_traffic_light(data = robins %>% select(-Weight), psize=5, tool = "ROBINS-I")
+```
+
+#### Risk of bias across studies
+
+Figures \@ref(fig:ant-rob-summary) and \@ref(fig:ant-robins-summary) summarise risks of bias across the randomized and
+non-randomized studies respectively^[All studies were equally weighted in these analyses.].
+
+```{r ant-rob-summary, fig.pos = "!h", out.width = "60%", fig.align="center", fig.cap='Risk of bias across randomised studies.'}
+rob_summary(data = rob2, tool = "ROB2")
+```
+
+```{r ant-robins-summary, fig.pos = "!h", out.width = "60%", fig.align="center", fig.cap='Risk of bias across non-randomised studies.'}
+rob_summary(data = robins, tool = "ROBINS-I")
+```
+
+#### Funnel plots
+
+The funnel plot in Figure \@ref(fig:executive-funnel) shows, for each study, the estimate of the SMD for executive
+attention, against the study's standard error. A funnel plot is a scatterplot of study effect size estimates against
+their sample size or precision [@sterneRecommendationsExaminingInterpreting2011]. The standard error is representative
+of sample size, so studies with larger samples and power are positioned higher on the y axis (as the standard error
+decreases). Effect estimates from smaller studies should scatter more widely at the bottom of the plot, and narrow as
+sample sizes increase, creating an inverted funnel shape. In the absence of bias the solid and dotted triangles, centred
+on the pooled effect size estimate, will include about 95%, and 99% of studies respectively. Asymmetry around the effect
+size estimate can indicate publication bias [@sterneRecommendationsExaminingInterpreting2011]. Figure
+\@ref(fig:executive-funnel) is symmetrical, which indicates that the executive attention SMD estimates were not affected
+by publication bias.
+
+```{r executive-funnel, fig.pos = "h", out.width='80%', fig.align='center', fig.cap="Funnel plot showing meta-analytic executive attention SMD against study size/precision."}
+funnel_plot(read_meta_ant_data('conflict_funnel_data'))
+```
+
+The funnel plot in Figure \@ref(fig:alerting-funnel) is symmetrical about the pooled effect size, so there is no
+evidence that the alerting SMD estimates were affected by publication bias.
+
+```{r alerting-funnel, fig.pos = "h!", out.width='80%', fig.align='center', fig.cap="Funnel plot showing meta-analytic alerting SMD against study size/precision."}
+funnel_plot(read_meta_ant_data('alerting_funnel_data'))
+```
+
+The funnel plot in Figure \@ref(fig:orienting-funnel) is symmetrical about the pooled effect size, so there is no
+evidence that the orienting SMD estimates were affected by publication bias.
+
+```{r orienting-funnel, fig.pos = "!h", out.width='80%', fig.align='center', fig.cap="Funnel plot showing meta-analytic orienting SMD against study size/precision."}
+funnel_plot(read_meta_ant_data('orienting_funnel_data'))
+```
